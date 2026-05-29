@@ -12,6 +12,23 @@ The repo provides:
 
 The bundled defaults target the included small-house world, but the scripts are intentionally parameterized so other Gazebo worlds, model folders, and Nav2 maps can be used by changing config values or passing command-line options.
 
+## Table Of Contents
+
+- [Contents](#contents)
+- [Requirements](#requirements)
+- [Configure](#configure)
+- [Build](#build)
+- [Launch Defaults](#launch-defaults)
+- [Record Camera Poses](#record-camera-poses)
+- [Capture Screenshots From Recorded Poses](#capture-screenshots-from-recorded-poses)
+- [Export Known Poses For COLMAP](#export-known-poses-for-colmap)
+- [COLMAP Pipeline For 3DGS](#colmap-pipeline-for-3dgs)
+- [Use Another Gazebo World](#use-another-gazebo-world)
+- [Add A New World](#add-a-new-world)
+- [Use Another Nav2 Map](#use-another-nav2-map)
+- [Create A Map For A New World](#create-a-map-for-a-new-world)
+- [Config Defaults](#config-defaults)
+
 ## Contents
 
 ```text
@@ -22,6 +39,8 @@ scripts/run_turtlebot_world.sh        Launches TurtleBot simulation
 scripts/run_wasd_world.sh            Launches Gazebo with WASD GUI camera plugin
 scripts/record_gui_camera_waypoints.py
 scripts/capture_gui_camera_survey.py
+scripts/export_colmap_known_poses.py
+scripts/run_colmap_3dgs_pipeline.sh
 tb4_overlay_ws/src/                  Overlay source packages, worlds, models, GUI plugin
 ```
 
@@ -165,6 +184,182 @@ python3 scripts/capture_gui_camera_survey.py \
   --transforms-json data/my_world/screenshots/transforms.json \
   --screenshot-search-dir /tmp \
   --screenshot-search-dir /path/to/gazebo/screenshots
+```
+
+## Export Known Poses For COLMAP
+
+After screenshot capture, export the run as a COLMAP text model with known camera poses:
+
+```bash
+python3 scripts/export_colmap_known_poses.py \
+  --poses-csv data/my_world/screenshots/poses.csv \
+  --images-dir data/my_world/screenshots/images \
+  --output-dir data/my_world/colmap_known
+```
+
+This writes:
+
+```text
+data/my_world/colmap_known/cameras.txt
+data/my_world/colmap_known/images.txt
+data/my_world/colmap_known/points3D.txt
+```
+
+The exporter converts the Gazebo GUI camera pose convention into COLMAP's world-to-camera optical convention. By default it writes one shared `SIMPLE_PINHOLE` camera and derives focal length from a 90 degree horizontal field of view. Override intrinsics if you know them:
+
+```bash
+python3 scripts/export_colmap_known_poses.py \
+  --poses-csv data/my_world/screenshots/poses.csv \
+  --images-dir data/my_world/screenshots/images \
+  --output-dir data/my_world/colmap_known \
+  --focal-px 917.5 \
+  --cx 917.5 \
+  --cy 481.5
+```
+
+If you already created a COLMAP database and need image IDs to match it, pass the database path:
+
+```bash
+python3 scripts/export_colmap_known_poses.py \
+  --poses-csv data/my_world/screenshots/poses.csv \
+  --images-dir data/my_world/screenshots/images \
+  --output-dir data/my_world/colmap_known \
+  --database-path path/to/database.db
+```
+
+## COLMAP Pipeline For 3DGS
+
+The goal of this pipeline is to produce a COLMAP-style dataset that can be passed to 3D Gaussian Splatting implementations. The images come from Gazebo, the camera poses come from `poses.csv`, and COLMAP is used only to compute feature matches and triangulate a sparse point cloud from those known poses.
+
+For the full default pipeline, use the wrapper script:
+
+```bash
+bash scripts/run_colmap_3dgs_pipeline.sh \
+  --run-dir data/my_world \
+  --overwrite
+```
+
+This runs feature extraction, sequential matching, known-pose export, triangulation, binary conversion, and PLY export. It creates a flat Brush/3DGS-style output folder at:
+
+```text
+data/my_world/brush_output/
+```
+
+That folder contains all captured images plus:
+
+```text
+cameras.bin
+images.bin
+points3D.bin
+points3D.ply
+```
+
+By default, the wrapper derives intrinsics from the first image and the configured 90 degree Gazebo GUI horizontal FOV. Override them if needed:
+
+```bash
+bash scripts/run_colmap_3dgs_pipeline.sh \
+  --run-dir data/my_world \
+  --focal-px 917.5 \
+  --cx 917.5 \
+  --cy 481.5 \
+  --overwrite
+```
+
+The manual commands below are the same pipeline broken down step by step.
+
+Set paths for one run:
+
+```bash
+cd /home/nick/Documents/turtlebot-gazebo-camera-tools
+
+RUN=data/my_world
+IMG=$RUN/screenshots/images
+COLMAP_OUT=$RUN/colmap
+
+mkdir -p "$COLMAP_OUT"
+```
+
+1. Create the COLMAP database and extract image features.
+
+This detects SIFT features in each screenshot and stores the image records, camera model, and feature descriptors in `database.db`. The camera parameters must match the known-pose export. The values below are the defaults for 1835 x 963 screenshots with a 90 degree horizontal FOV.
+
+```bash
+colmap feature_extractor \
+  --database_path "$COLMAP_OUT/database.db" \
+  --image_path "$IMG" \
+  --ImageReader.camera_model SIMPLE_PINHOLE \
+  --ImageReader.single_camera 1 \
+  --ImageReader.camera_params "917.5,917.5,481.5"
+```
+
+2. Match image features.
+
+This finds 2D correspondences between images. For ordered camera paths, `sequential_matcher` is usually faster than exhaustive matching and works well when neighboring screenshots overlap.
+
+```bash
+colmap sequential_matcher \
+  --database_path "$COLMAP_OUT/database.db" \
+  --SequentialMatching.overlap 10
+```
+
+Increase `--SequentialMatching.overlap` if the sparse cloud is too thin. For small unordered datasets, `exhaustive_matcher` is a simpler but slower alternative.
+
+3. Export the known camera poses in COLMAP text format.
+
+This writes `cameras.txt`, `images.txt`, and an empty `points3D.txt`. The `--database-path` argument makes the image IDs match the COLMAP database, which is required by `point_triangulator`.
+
+```bash
+python3 scripts/export_colmap_known_poses.py \
+  --poses-csv "$RUN/screenshots/poses.csv" \
+  --images-dir "$IMG" \
+  --output-dir "$COLMAP_OUT/sparse_known" \
+  --database-path "$COLMAP_OUT/database.db" \
+  --focal-px 917.5 \
+  --cx 917.5 \
+  --cy 481.5
+```
+
+4. Triangulate sparse 3D points from the known poses.
+
+This uses the fixed camera poses plus the feature matches to create a sparse COLMAP reconstruction. It does not estimate a new camera trajectory.
+
+```bash
+mkdir -p "$COLMAP_OUT/sparse/0"
+
+colmap point_triangulator \
+  --database_path "$COLMAP_OUT/database.db" \
+  --image_path "$IMG" \
+  --input_path "$COLMAP_OUT/sparse_known" \
+  --output_path "$COLMAP_OUT/sparse/0"
+```
+
+5. Convert the sparse model to binary COLMAP files if your 3DGS implementation expects them.
+
+Many 3DGS loaders expect the standard COLMAP binary files under `sparse/0`.
+
+```bash
+colmap model_converter \
+  --input_path "$COLMAP_OUT/sparse/0" \
+  --output_path "$COLMAP_OUT/sparse/0" \
+  --output_type BIN
+```
+
+The resulting dataset for 3DGS is:
+
+```text
+data/my_world/screenshots/images/
+data/my_world/colmap/sparse/0/cameras.bin
+data/my_world/colmap/sparse/0/images.bin
+data/my_world/colmap/sparse/0/points3D.bin
+```
+
+Optionally export a PLY point cloud for inspection:
+
+```bash
+colmap model_converter \
+  --input_path "$COLMAP_OUT/sparse/0" \
+  --output_path "$COLMAP_OUT/sparse/points3D.ply" \
+  --output_type PLY
 ```
 
 ## Use Another Gazebo World
