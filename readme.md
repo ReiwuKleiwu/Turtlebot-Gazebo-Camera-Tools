@@ -1,6 +1,6 @@
 # TurtleBot Gazebo Camera Tools
 
-This repository contains a small, portable toolchain for working with TurtleBot 4 simulations in Gazebo when you need repeatable GUI-camera screenshots from manually chosen viewpoints. It is meant for workflows where you fly through a simulated world, save the Gazebo GUI camera poses you care about, and later replay those exact poses to generate a consistent image dataset with pose metadata.
+This repository contains a small, portable toolchain for working with TurtleBot 4 simulations in Gazebo when you need repeatable GUI-camera screenshots from manually chosen viewpoints. It is meant for workflows where you fly through a simulated world, save the Gazebo GUI camera poses you care about, and later replay those exact poses to generate a consistent image dataset with pose metadata. The resulting images and camera poses can be used as input for Structure-from-Motion pipelines such as COLMAP, making it possible to produce high-quality reconstructions from controlled simulated viewpoints.
 
 The repo provides:
 
