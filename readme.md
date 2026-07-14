@@ -1,16 +1,18 @@
-# TurtleBot Gazebo Camera Tools
+# TurtleBot Photogrammetry Toolkit
 
-This repository contains a small, portable toolchain for working with TurtleBot 4 simulations in Gazebo when you need repeatable GUI-camera screenshots from manually chosen viewpoints. It is meant for workflows where you fly through a simulated world, save the Gazebo GUI camera poses you care about, and later replay those exact poses to generate a consistent image dataset with pose metadata. The resulting images and camera poses can be used as input for Structure-from-Motion pipelines such as COLMAP, making it possible to produce high-quality reconstructions from controlled simulated viewpoints.
+This repository contains a portable toolchain for collecting TurtleBot 4 image datasets with known camera poses for photogrammetry, Structure-from-Motion, COLMAP, and 3D Gaussian Splatting workflows. It supports both Gazebo simulation captures from repeatable GUI-camera viewpoints and physical TurtleBot OAK-D captures where image poses are looked up from ROS TF.
 
 The repo provides:
 
-- launch scripts for starting TurtleBot 4 Gazebo worlds with or without the custom WASD GUI-camera controller
+- launch scripts for starting TurtleBot 4 Gazebo worlds with localization, Nav2, SLAM, and optional custom GUI-camera controls
 - a ROS/Gazebo overlay containing the WASD camera plugin and bundled TurtleBot 4 world/model assets
-- a waypoint recorder that saves the current Gazebo GUI camera pose to JSON
-- a screenshot replay tool that moves the GUI camera back to recorded poses and writes PNG images, `poses.csv`, and `transforms.json`
+- Gazebo GUI-camera waypoint recording and screenshot replay tools that write PNG images, `poses.csv`, and `transforms.json`
+- physical TurtleBot OAK-D capture tools that save images with TF-based optical camera poses and camera calibration metadata
+- photogrammetry path generation, editing, visualization, and Nav2-driven capture utilities
+- COLMAP/3DGS export scripts for turning captured image runs into reconstruction-ready datasets
 - config files and examples for keeping local paths, maps, worlds, and GUI settings out of the scripts
 
-The bundled defaults target the included small-house world, but the scripts are intentionally parameterized so other Gazebo worlds, model folders, and Nav2 maps can be used by changing config values or passing command-line options.
+The bundled defaults target the included small-house world, but the scripts are intentionally parameterized so other Gazebo worlds, model folders, Nav2 maps, physical robot namespaces, and capture topics can be used by changing config values or passing command-line options.
 
 ## Table Of Contents
 
@@ -271,7 +273,7 @@ The manual commands below are the same pipeline broken down step by step.
 Set paths for one run:
 
 ```bash
-cd /home/nick/Documents/turtlebot-gazebo-camera-tools
+cd /path/to/TurtleBot-Photogrammetry-Toolkit
 
 RUN=data/my_world
 IMG=$RUN/screenshots/images
