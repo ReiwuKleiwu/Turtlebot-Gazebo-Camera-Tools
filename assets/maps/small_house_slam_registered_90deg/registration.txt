@@ -1,0 +1,8 @@
+source: assets/maps/small_house_slam/map.yaml
+reference: assets/maps/turtlebot3_waffle_pi/map.yaml
+transform: old_xy = R(theta) * source_xy + t
+theta_deg: 90.000000
+tx_m: -3.439439
+ty_m: -4.510273
+output_origin: [-10.000000, -10.000000, 0.000000]
+output_size_px: [608, 384]

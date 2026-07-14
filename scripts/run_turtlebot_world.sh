@@ -9,6 +9,7 @@ load_project_config
 WORLD_NAME="${TURTLEBOT_WORLD}"
 RVIZ="true"
 LOCALIZATION="true"
+SLAM="false"
 NAV2="true"
 ROBOT_X="-3.5"
 ROBOT_Y="-4.5"
@@ -27,6 +28,7 @@ Options:
   --gui-config PATH     Gazebo GUI config. Relative paths resolve from repo root.
   --rviz true|false
   --localization true|false
+  --slam true|false
   --nav2 true|false
   --x VALUE
   --y VALUE
@@ -43,6 +45,7 @@ while [[ $# -gt 0 ]]; do
     --gui-config) GUI_CONFIG_OVERRIDE="$(resolve_project_path "$2")"; shift 2 ;;
     --rviz) RVIZ="$2"; shift 2 ;;
     --localization) LOCALIZATION="$2"; shift 2 ;;
+    --slam) SLAM="$2"; shift 2 ;;
     --nav2) NAV2="$2"; shift 2 ;;
     --x) ROBOT_X="$2"; shift 2 ;;
     --y) ROBOT_Y="$2"; shift 2 ;;
@@ -110,6 +113,7 @@ launch_args=(
   world:="${WORLD_NAME}"
   rviz:="${RVIZ}"
   localization:="${LOCALIZATION}"
+  slam:="${SLAM}"
   nav2:="${NAV2}"
   map:="${MAP_YAML}"
   x:="${ROBOT_X}"
